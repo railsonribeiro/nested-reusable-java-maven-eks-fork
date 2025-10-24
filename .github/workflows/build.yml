@@ -47,13 +47,9 @@ on:
       run_validation_and_lint:
         description: "Executar validação e linting (mvn verify)"
         required: false
-        type: boolean
-        default: true
       run_build:
         description: "Executar build (mvn clean package -DskipTests)"
         required: false
-        type: boolean
-        default: true
 #      run_tests:
 #        description: "Executar testes (mvn test)"
 #        required: false
