@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       app_name:
-        required: false
+        required: true
         type: string
         default: 'default-app'
       dockerhub_username:
