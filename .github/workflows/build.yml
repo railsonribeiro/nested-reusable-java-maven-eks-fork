@@ -219,7 +219,7 @@ jobs:
           # output already written to GITHUB_OUTPUT by step above; ensure it's present
           echo "build_status=${{ steps.run-build.outputs.build_status || 'success' }}" >> $GITHUB_OUTPUT
 
-  test:
+  unit_test:
     if: ${{ inputs.run_tests }}
     runs-on: ubuntu-latest
     needs: [ validation-and-lint, build]
