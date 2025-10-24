@@ -6,6 +6,11 @@ on:
       run_sonar_scan:
         required: true
         type: boolean
+    secrets:
+      SONAR_TOKEN:
+        required: true
+      SONAR_HOST_URL:
+        required: true
 
 jobs:
   sonar-scan:
