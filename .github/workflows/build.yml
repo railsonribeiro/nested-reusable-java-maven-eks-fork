@@ -204,7 +204,7 @@ jobs:
 #              ${{ runner.os }}-m2-
       - name: Run build and Tests
         if: inputs.run_build_and_test
-#        id: run-build
+        id: maven-verify
         run: |
           mvn -B verify
 #          set -o pipefail
@@ -271,19 +271,19 @@ jobs:
 #        run: |
 #          echo "test_status=${{ steps.run-unit_test.outputs.test_status || 'success' }}" >> $GITHUB_OUTPUT
 
-      - name: Gerar relatório Jacoco
-        if: inputs.run_build_and_test
-        run: mvn jacoco:report
+#      - name: Gerar relatório Jacoco
+#        if: inputs.run_build_and_test
+#        run: mvn jacoco:report
 
       - name: Generate Jacoco Badge
         id: jacoco
         if: inputs.run_build_and_test
         uses: cicirello/jacoco-badge-generator@v2.0.1
-      - name: Log coverage percentage
-        if: inputs.run_build_and_test
-        run: |
-          echo "Coverage percentage: ${{ steps.jacoco.outputs.coverage }}"
-          echo "branch coverage: ${{ steps.jacoco.outputs.branches }}"
+#      - name: Log coverage percentage
+#        if: inputs.run_build_and_test
+#        run: |
+#          echo "Coverage percentage: ${{ steps.jacoco.outputs.coverage }}"
+#          echo "branch coverage: ${{ steps.jacoco.outputs.branches }}"
 
       - name: Upload Jacoco coverage report
         if: inputs.run_build_and_test
@@ -299,3 +299,9 @@ jobs:
           name: build-artifacts
           path: |
             target/
+
+      - name: Check for build/test failures
+        if: steps.maven-verify.outcome == 'failure'
+        run: |
+          echo "::error::Maven build or tests failed. Check the logs in the 'Run build and Tests' step."
+          exit 1
