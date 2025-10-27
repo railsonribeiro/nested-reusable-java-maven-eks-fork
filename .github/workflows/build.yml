@@ -243,7 +243,7 @@ jobs:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
       - name: Wait for SonarQube Quality Gate
-        if: always()
+        if: ${{ inputs.run_gates && github.ref == 'refs/heads/main' }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
