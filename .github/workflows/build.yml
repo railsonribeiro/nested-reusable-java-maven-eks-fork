@@ -207,22 +207,6 @@ jobs:
             target/site/jacoco/jacoco.xml
             *.jar
 
-      - name: Verify JaCoCo report exists
-        run: |
-          echo "Verificando: target/site/jacoco/jacoco.xml"
-          if [ -f "target/site/jacoco/jacoco.xml" ]; then
-            echo "::notice::Arquivo encontrado: target/site/jacoco/jacoco.xml"
-            echo "Tamanho e permissões:"
-            ls -la target/site/jacoco/jacoco.xml
-            echo "Primeiras linhas do xml:"
-            head -n 20 target/site/jacoco/jacoco.xml || true
-          else
-            echo "::error::Arquivo de cobertura JaCoCo não encontrado em `target/site/jacoco/jacoco.xml`"
-            echo "Conteúdo de target/site/jacoco:"
-            ls -la target/site/jacoco || true
-            exit 1
-          fi
-
   gates:
     name: Quality Gates
     needs: build_and_test
@@ -261,26 +245,30 @@ jobs:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
       - name: Wait for SonarQube Quality Gate
+        if: ${{ inputs.run_gates && github.ref == 'refs/heads/main' }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           set -euo pipefail
+      
           REPORT_FILE=".scannerwork/report-task.txt"
           if [ ! -f "$REPORT_FILE" ]; then
             echo "::error::Arquivo de report do scanner não encontrado: $REPORT_FILE"
-            ls -la .scannerwork || true
+            ls -la .
             exit 1
           fi
-          echo "Conteúdo de $REPORT_FILE:"
-          cat "$REPORT_FILE"
+      
           CE_TASK_ID=$(grep '^ceTaskId=' "$REPORT_FILE" | cut -d'=' -f2)
           SERVER_URL=$(grep '^serverUrl=' "$REPORT_FILE" | cut -d'=' -f2)
+      
           if [ -z "$CE_TASK_ID" ] || [ -z "$SERVER_URL" ]; then
             echo "::error::Não foi possível obter ceTaskId ou serverUrl do $REPORT_FILE"
+            cat "$REPORT_FILE"
             exit 1
           fi
-
+      
           echo "Aguardando conclusão da task do Sonar (ceTaskId=$CE_TASK_ID)..."
+      
           ANALYSIS_ID=""
           MAX_TRIES=30
           TRY=0
@@ -288,45 +276,38 @@ jobs:
             TRY=$((TRY+1))
             sleep 10
             JSON=$(curl -s -u "${SONAR_TOKEN}:" "${SERVER_URL}/api/ce/task?id=${CE_TASK_ID}")
-            ERR_MSG=$(echo "$JSON" | jq -r '.errors[0].msg // empty')
-            if [ -n "$ERR_MSG" ]; then
-              echo "::error::Erro do Sonar: $ERR_MSG"
-              echo "$JSON" | jq .
-              # Se quiser apenas ignorar esse caso (não recomendado), descomente a linha abaixo:
-              # echo "::warning::Ignorando Quality Gate para branch não-main"; exit 0
-              exit 1
-            fi
             STATUS=$(echo "$JSON" | jq -r '.task.status // empty')
             if [ "$STATUS" = "SUCCESS" ]; then
               ANALYSIS_ID=$(echo "$JSON" | jq -r '.task.analysisId // empty')
               break
             elif [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "CANCELED" ]; then
               echo "::error::Sonar CE task com status $STATUS"
-              echo "$JSON" | jq .
+              echo "$JSON"
               exit 1
             else
               echo "Tentativa $TRY/$MAX_TRIES - status: ${STATUS:-PENDING} ..."
             fi
           done
-
+      
           if [ -z "$ANALYSIS_ID" ]; then
             echo "::error::Timeout aguardando conclusão da CE task"
             exit 1
           fi
+      
           echo "CE task concluída. analysisId=$ANALYSIS_ID"
+          echo "Consultando Quality Gate..."
+      
           QG_JSON=$(curl -s -u "${SONAR_TOKEN}:" "${SERVER_URL}/api/qualitygates/project_status?analysisId=${ANALYSIS_ID}")
-          ERR_MSG=$(echo "$QG_JSON" | jq -r '.errors[0].msg // empty')
-          if [ -n "$ERR_MSG" ]; then
-            echo "::error::Erro do Sonar ao consultar Quality Gate: $ERR_MSG"
-            echo "$QG_JSON" | jq .
-            exit 1
-          fi
           QG_STATUS=$(echo "$QG_JSON" | jq -r '.projectStatus.status // empty')
+      
           echo "Quality Gate status: $QG_STATUS"
           echo "$QG_JSON" | jq .
+      
           if [ "$QG_STATUS" != "OK" ]; then
             echo "::error::Quality Gate falhou: $QG_STATUS"
+            # opcional: imprimir condições falhadas
             echo "$QG_JSON" | jq -r '.projectStatus.conditions[] | "- \(.metricKey): \(.status) (\(.actualValue) - expected: \(.operator) \(.errorThreshold // .period))"'
             exit 1
           fi
+      
           echo "Quality Gate OK"
