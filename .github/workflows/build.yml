@@ -196,7 +196,20 @@ jobs:
           cache: maven
 
       - name: Build with Maven
-        run: mvn -B clean verify
+        run: | 
+          mvn -B clean verify
+          echo "Verificando JaCoCo: target/site/jacoco/jacoco.xml"
+          if [ -f "target/site/jacoco/jacoco.xml" ]; then
+            echo "::notice::Arquivo encontrado"
+            ls -la target/site/jacoco/jacoco.xml
+            head -n 20 target/site/jacoco/jacoco.xml || true
+          else
+            echo "::error::Arquivo de cobertura JaCoCo não encontrado em target/site/jacoco/jacoco.xml"
+            echo "Conteúdo de target/site/jacoco:"
+            ls -la target/site/jacoco || true
+            exit 1
+          fi
+          
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -249,6 +262,13 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
+          echo "Conteúdo de .scannerwork/report-task.txt (se existir):"
+          if [ -f ".scannerwork/report-task.txt" ]; then
+            cat .scannerwork/report-task.txt
+          else
+            echo "::warning::Arquivo .scannerwork/report-task.txt não encontrado no diretório atual"
+            ls -la .scannerwork || true
+          fi
           set -euo pipefail
       
           REPORT_FILE=".scannerwork/report-task.txt"
