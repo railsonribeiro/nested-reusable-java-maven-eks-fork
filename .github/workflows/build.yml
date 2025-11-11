@@ -256,7 +256,7 @@ jobs:
         with:
           args: >
             -Dsonar.coverage.jacoco.xmlReportPaths="**/target/site/jacoco/jacoco.xml"
-            -Dsonar.branch.name=${GITHUB_REF_NAME}
+            -Dsonar.branch.name=${{ github.ref_name }}
             -Dsonar.branch.target=main
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
