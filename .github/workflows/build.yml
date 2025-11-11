@@ -249,7 +249,7 @@ jobs:
           fi
 
       - name: SonarQube Scan
-        if: ${{ inputs.run_gates && github.ref == 'refs/heads/develop' }}
+        if: ${{ inputs.run_gates && github.ref == 'refs/heads/main' }}
         uses: SonarSource/sonarqube-scan-action@v6.0.0
         with:
           args: -Dsonar.coverage.jacoco.xmlReportPaths="**/target/site/jacoco/jacoco.xml"
@@ -263,7 +263,7 @@ jobs:
           find . -name report-task.txt
 
       - name: Salvar report-task.txt como artifact
-        if: ${{ inputs.run_gates && github.ref == 'refs/heads/develop' }}
+        if: ${{ inputs.run_gates && github.ref == 'refs/heads/main' }}
         uses: actions/upload-artifact@v4
         with:
           name: sonar-report-task
