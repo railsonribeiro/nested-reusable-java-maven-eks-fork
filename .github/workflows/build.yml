@@ -376,6 +376,7 @@ jobs:
 
       - name: Build Docker image
         run: |
+          echo ${{ vars.APP_NAME }}
           docker build -t ${{ vars.APP_NAME }}:latest .
 
       - name: Login to Docker Hub
