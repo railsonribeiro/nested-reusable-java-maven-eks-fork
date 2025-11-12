@@ -369,8 +369,113 @@ jobs:
     needs: build_and_test
     if: (github.ref == 'refs/heads/main')
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Verify Required Variables and Secrets
+        run: |
+          echo "🔍 Verificando variáveis e secrets necessários..."
+
+          # prefer inputs, fallback para repository vars
+          APP_NAME="${{ inputs.app_name }}"
+          if [ -z "$APP_NAME" ]; then
+            APP_NAME="${{ vars.APP_NAME }}"
+          fi
+
+          DOCKERHUB_USERNAME="${{ inputs.dockerhub_username }}"
+          if [ -z "$DOCKERHUB_USERNAME" ]; then
+            DOCKERHUB_USERNAME="${{ vars.DOCKERHUB_USERNAME }}"
+          fi
+
+          CLUSTER_NAME="${{ inputs.cluster_name }}"
+          if [ -z "$CLUSTER_NAME" ]; then
+            CLUSTER_NAME="${{ vars.CLUSTER_NAME }}"
+          fi
+
+          REGION_AWS_DEPLOY="${{ inputs.region_aws_deploy }}"
+          if [ -z "$REGION_AWS_DEPLOY" ]; then
+            REGION_AWS_DEPLOY="${{ vars.REGION_AWS_DEPLOY }}"
+          fi
+
+          DOMAIN_NAME="${{ inputs.domain_name }}"
+          if [ -z "$DOMAIN_NAME" ]; then
+            DOMAIN_NAME="${{ vars.DOMAIN_NAME }}"
+          fi
+
+          echo "📋 Verificando variáveis..."
+          MISSING_VARS=()
+          if [ -z "$APP_NAME" ]; then MISSING_VARS+=("APP_NAME"); else echo "✅ APP_NAME: $APP_NAME"; fi
+          if [ -z "$DOCKERHUB_USERNAME" ]; then MISSING_VARS+=("DOCKERHUB_USERNAME"); else echo "✅ DOCKERHUB_USERNAME: $DOCKERHUB_USERNAME"; fi
+          if [ -z "$CLUSTER_NAME" ]; then MISSING_VARS+=("CLUSTER_NAME"); else echo "✅ CLUSTER_NAME: $CLUSTER_NAME"; fi
+          if [ -z "$REGION_AWS_DEPLOY" ]; then MISSING_VARS+=("REGION_AWS_DEPLOY"); else echo "✅ REGION_AWS_DEPLOY: $REGION_AWS_DEPLOY"; fi
+          if [ -z "$DOMAIN_NAME" ]; then MISSING_VARS+=("DOMAIN_NAME"); else echo "✅ DOMAIN_NAME: $DOMAIN_NAME"; fi
+
+          echo "🔐 Verificando secrets..."
+          MISSING_SECRETS=()
+          DOCKERHUB_TOKEN="${{ secrets.DOCKERHUB_TOKEN }}"
+          if [ -z "$DOCKERHUB_TOKEN" ]; then MISSING_SECRETS+=("DOCKERHUB_TOKEN"); else echo "✅ DOCKERHUB_TOKEN: [REDACTED]"; fi
+
+          AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}"
+          if [ -z "$AWS_ACCESS_KEY_ID" ]; then MISSING_SECRETS+=("AWS_ACCESS_KEY_ID"); else echo "✅ AWS_ACCESS_KEY_ID: [REDACTED]"; fi
+
+          AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+          if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then MISSING_SECRETS+=("AWS_SECRET_ACCESS_KEY"); else echo "✅ AWS_SECRET_ACCESS_KEY: [REDACTED]"; fi
+
+          JWT_TOKEN_PIX_APPLICATION_PAYMENT="${{ secrets.JWT_TOKEN_PIX_APPLICATION_PAYMENT }}"
+          if [ -z "$JWT_TOKEN_PIX_APPLICATION_PAYMENT" ]; then MISSING_SECRETS+=("JWT_TOKEN_PIX_APPLICATION_PAYMENT"); else echo "✅ JWT_TOKEN_PIX_APPLICATION_PAYMENT: [REDACTED]"; fi
+
+          JWT_SECRET="${{ secrets.JWT_SECRET }}"
+          if [ -z "$JWT_SECRET" ]; then MISSING_SECRETS+=("JWT_SECRET"); else echo "✅ JWT_SECRET: [REDACTED]"; fi
+
+          CLOUDFLARE_EDIT_ZONE_DNS_KEY="${{ secrets.CLOUDFLARE_EDIT_ZONE_DNS_KEY }}"
+          if [ -z "$CLOUDFLARE_EDIT_ZONE_DNS_KEY" ]; then MISSING_SECRETS+=("CLOUDFLARE_EDIT_ZONE_DNS_KEY"); else echo "✅ CLOUDFLARE_EDIT_ZONE_DNS_KEY: [REDACTED]"; fi
+
+          if [ ${#MISSING_VARS[@]} -ne 0 ] || [ ${#MISSING_SECRETS[@]} -ne 0 ]; then
+            echo ""
+            echo "❌ ERRO: Variáveis ou secrets obrigatórios não foram encontrados!"
+            if [ ${#MISSING_VARS[@]} -ne 0 ]; then
+              echo ""
+              echo "📋 Variáveis faltando:"
+              for var in "${MISSING_VARS[@]}"; do
+                echo "  - $var"
+              done
+            fi
+            if [ ${#MISSING_SECRETS[@]} -ne 0 ]; then
+              echo ""
+              echo "🔐 Secrets faltando:"
+              for secret in "${MISSING_SECRETS[@]}"; do
+                echo "  - $secret"
+              done
+            fi
+            exit 1
+          else
+            echo ""
+            echo "✅ Todas as variáveis e secrets necessários estão configurados!"
+            echo ""
+          fi
+      - name: Lint Dockerfile
+        run: |
+          echo "🔍 Verificando qualidade do Dockerfile..."
+
+           # Verificar se o Dockerfile existe
+           if [ ! -f "Dockerfile" ]; then
+             echo "❌ ERRO: Dockerfile não encontrado no repositório"
+             exit 1
+           fi
+
+           echo "✅ Dockerfile encontrado"
+
+           # Instalar hadolint se não estiver disponível
+           if ! command -v hadolint &> /dev/null; then
+             echo "📦 Instalando hadolint..."
+             wget -O hadolint https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
+             chmod +x hadolint
+             sudo mv hadolint /usr/local/bin/
+           fi
+
+           echo "🔍 Executando lint no Dockerfile..."
+           hadolint Dockerfile 
 
       - name: Build Docker image
         run: |
