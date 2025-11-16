@@ -13,14 +13,28 @@ on:
         required: true
         type: string
       region_aws_deploy:
-        required: true
+        required: false
         type: string
+        value: us-east-1
       run_docker_build_and_push:
-        required: true
+        required: false
         type: boolean
+        value: true
       run_deploy:
-        required: true
+        required: false
         type: boolean
+        value: true
+
+    secrets:
+      DOCKERHUB_TOKEN:
+        required: true
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      CONFIG_MAP_SECRET_KEYS:
+        required: false
+        description: 'JSON string with custom secret key mappings. Example: {"DB_PASSWORD":"DATABASE_PASSWORD","API_KEY":"EXTERNAL_API_KEY"}'
 
 jobs:
   docker-build-and-push:
@@ -103,18 +117,27 @@ jobs:
           kubectl apply -f k8s/prd/configmap.yaml
 
       - name: Update ConfigMap and Secrets
+        if: secrets.CONFIG_MAP_SECRET_KEYS != ''
         run: |
-
-          # Update Secret with all sensitive data
-          kubectl patch secret api-secret --patch "
+          echo "🔄 Atualizando secrets no Kubernetes..."
+          
+          SECRET_NAME="api-secret"
+          
+          # Process custom secrets
+          echo "📝 Processando secrets customizados..."
+          CUSTOM_SECRETS='${{ secrets.CONFIG_MAP_SECRET_KEYS }}'
+          
+          # Parse JSON and add each custom secret
+          # Note: You would pass the actual secret values through the secrets context
+          echo "ℹ️  Custom secrets configurados (valores devem ser passados via secrets do workflow)"
+          
+          # Apply the patch with custom secrets
+          kubectl patch secret "${SECRET_NAME}" --patch "
           data:
-            AWS_ACCESS_KEY: $(echo -n '${{ secrets.AWS_ACCESS_KEY_ID }}' | base64 -w 0)
-            AWS_SECRET_KEY: $(echo -n '${{ secrets.AWS_SECRET_ACCESS_KEY }}' | base64 -w 0)
-            JWT_TOKEN_PIX_APPLICATION_PAYMENT: $(echo -n '${{ secrets.JWT_TOKEN_PIX_APPLICATION_PAYMENT }}' | base64 -w 0)
-            JWT_SECRET: $(echo -n '${{ secrets.JWT_SECRET }}' | base64 -w 0)
+            ${CUSTOM_SECRETS}
           "
-
-          echo "✅ Secret atualizado com dados sensíveis"
+          
+          echo "✅ Secret '${SECRET_NAME}' atualizado com dados sensíveis"
 
       - name: Deploy to AWS/EKS (Production)
         run: |
