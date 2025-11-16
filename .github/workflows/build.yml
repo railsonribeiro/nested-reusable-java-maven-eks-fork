@@ -7,6 +7,9 @@ on:
       app_name:
         required: true
         type: string
+      dockerhub_username:
+        required: true
+        type: string
       java_version:
         description: "Versão do Java (ex: '17' ou '21')"
         required: false
