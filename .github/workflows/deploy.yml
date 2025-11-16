@@ -108,7 +108,10 @@ jobs:
         run: |
           echo "🚀 Iniciando deploy dos recursos..."
 
-          # Apply deployment first
+          # Apply namespace first
+          kubectl apply -f k8s/prd/namespace.yaml
+
+          # Apply deployment 
           kubectl apply -f k8s/prd/deployment.yaml
 
           # Aplicar o Service processado
