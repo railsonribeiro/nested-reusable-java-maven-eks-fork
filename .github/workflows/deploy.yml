@@ -6,9 +6,6 @@ on:
       app_name:
         required: true
         type: string
-      dockerhub_username:
-        required: true
-        type: string
       cluster_name:
         required: true
         type: string
@@ -16,10 +13,6 @@ on:
         required: false
         type: string
         default: us-east-1
-      run_docker_build_and_push:
-        required: false
-        type: boolean
-        default: true
       run_deploy:
         required: false
         type: boolean
