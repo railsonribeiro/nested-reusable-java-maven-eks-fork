@@ -117,7 +117,7 @@ jobs:
           kubectl apply -f k8s/prd/configmap.yaml
 
       - name: Update ConfigMap and Secrets
-        if: secrets.CONFIG_MAP_SECRET_KEYS != ''
+        if: ${{ secrets.CONFIG_MAP_SECRET_KEYS != '' }}
         run: |
           echo "🔄 Atualizando secrets no Kubernetes..."
           
