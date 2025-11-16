@@ -72,6 +72,10 @@ jobs:
           # Deletar todos os recursos do cluster de
           kubectl delete all --all
 
+      - name: Create Namespace
+        run: |
+          kubectl apply -f k8s/prd/namespace.yaml
+
       - name: Deploy ConfigMap and Secret base
         run: |
           # Apply base ConfigMap and Secret first
@@ -108,10 +112,7 @@ jobs:
         run: |
           echo "🚀 Iniciando deploy dos recursos..."
 
-          # Apply namespace first
-          kubectl apply -f k8s/prd/namespace.yaml
-
-          # Apply deployment 
+          # Apply deployment first
           kubectl apply -f k8s/prd/deployment.yaml
 
           # Aplicar o Service processado
