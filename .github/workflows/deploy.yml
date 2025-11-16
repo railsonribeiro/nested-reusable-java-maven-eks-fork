@@ -6,23 +6,15 @@ on:
       app_name:
         required: true
         type: string
-        default: 'default-app'
       dockerhub_username:
-        required: false
+        required: true
         type: string
-        default: 'default-username'
       cluster_name:
-        required: false
+        required: true
         type: string
-        default: 'default-cluster'
       region_aws_deploy:
-        required: false
+        required: true
         type: string
-        default: 'us-east-1'
-      domain_name:
-        required: false
-        type: string
-        default: 'default-domain.com'
       run_docker_build_and_push:
         required: true
         type: boolean
