@@ -23,6 +23,10 @@ on:
         required: false
         type: boolean
         default: true
+      run_docker_build_and_push:
+        required: false
+        type: boolean
+        default: true
 
 jobs:
   validation-and-lint:
