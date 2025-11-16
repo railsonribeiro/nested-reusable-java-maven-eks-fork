@@ -15,15 +15,15 @@ on:
       region_aws_deploy:
         required: false
         type: string
-        value: us-east-1
+        default: us-east-1
       run_docker_build_and_push:
         required: false
         type: boolean
-        value: true
+        default: true
       run_deploy:
         required: false
         type: boolean
-        value: true
+        default: true
 
     secrets:
       DOCKERHUB_TOKEN:
