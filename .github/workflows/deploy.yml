@@ -117,27 +117,31 @@ jobs:
           kubectl apply -f k8s/prd/configmap.yaml
 
       - name: Update ConfigMap and Secrets
-        if: ${{ secrets.CONFIG_MAP_SECRET_KEYS != '' }}
         run: |
-          echo "🔄 Atualizando secrets no Kubernetes..."
-          
-          SECRET_NAME="api-secret"
-          
-          # Process custom secrets
-          echo "📝 Processando secrets customizados..."
-          CUSTOM_SECRETS='${{ secrets.CONFIG_MAP_SECRET_KEYS }}'
-          
-          # Parse JSON and add each custom secret
-          # Note: You would pass the actual secret values through the secrets context
-          echo "ℹ️  Custom secrets configurados (valores devem ser passados via secrets do workflow)"
-          
-          # Apply the patch with custom secrets
-          kubectl patch secret "${SECRET_NAME}" --patch "
-          data:
-            ${CUSTOM_SECRETS}
-          "
-          
-          echo "✅ Secret '${SECRET_NAME}' atualizado com dados sensíveis"
+          # Only update if CONFIG_MAP_SECRET_KEYS is provided
+          if [ -n "${{ secrets.CONFIG_MAP_SECRET_KEYS }}" ]; then
+            echo "🔄 Atualizando secrets no Kubernetes..."
+            
+            SECRET_NAME="api-secret"
+            
+            # Process custom secrets
+            echo "📝 Processando secrets customizados..."
+            CUSTOM_SECRETS='${{ secrets.CONFIG_MAP_SECRET_KEYS }}'
+            
+            # Parse JSON and add each custom secret
+            # Note: You would pass the actual secret values through the secrets context
+            echo "ℹ️  Custom secrets configurados (valores devem ser passados via secrets do workflow)"
+            
+            # Apply the patch with custom secrets
+            kubectl patch secret "${SECRET_NAME}" --patch "
+            data:
+              ${CUSTOM_SECRETS}
+            "
+            
+            echo "✅ Secret '${SECRET_NAME}' atualizado com dados sensíveis"
+          else
+            echo "⏭️  Nenhum secret customizado fornecido, pulando atualização..."
+          fi
 
       - name: Deploy to AWS/EKS (Production)
         run: |
