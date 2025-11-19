@@ -110,9 +110,9 @@ jobs:
           echo "🚀 Iniciando deploy dos recursos..."
 
           # Apply deployment first
-          kubectl apply -f k8s/prd/deployment.yaml
+          kubectl apply -f k8s/prd/deployment.yaml --force
 
-          # Aplicar o Service processado
+          # Aplicar o Service
           kubectl apply -f k8s/prd/k8s-service.yaml
 
           # Aplicar Ingress
