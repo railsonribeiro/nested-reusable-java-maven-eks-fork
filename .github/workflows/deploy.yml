@@ -68,22 +68,6 @@ jobs:
           echo "✅ Conectado ao cluster com sucesso!"
           kubectl get nodes
 
-      - name: Clean Previous Deployment
-        run: |
-          echo "🧹 Removendo recursos anteriores para garantir deploy limpo..."
-
-          # Deletar todos os recursos do namespace
-          NAMESPACE="${{ inputs.namespace }}"
-          
-          echo "🗑️  Deletando recursos no namespace '${NAMESPACE}'..."
-          kubectl delete all --all --namespace="${NAMESPACE}" || true
-          kubectl delete configmaps --all --namespace="${NAMESPACE}" || true
-          kubectl delete secrets --all --namespace="${NAMESPACE}" || true
-          kubectl delete ingress --all --namespace="${NAMESPACE}" || true
-          kubectl delete pvc --all --namespace="${NAMESPACE}" || true
-          
-          echo "✅ Namespace '${NAMESPACE}' limpo com sucesso!"
-
       - name: Create Namespace
         run: |
           kubectl apply -f k8s/prd/namespace.yaml
