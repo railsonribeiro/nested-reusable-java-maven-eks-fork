@@ -197,10 +197,7 @@ jobs:
             echo "ℹ️  Custom secrets configurados (valores devem ser passados via secrets do workflow)"
             
             # Apply the patch with custom secrets in the correct namespace
-            kubectl patch secret "${SECRET_NAME}" -n "${NAMESPACE}" --patch "
-            data:
-              ${CUSTOM_SECRETS}
-            "
+            kubectl patch secret "${SECRET_NAME}" -n "${NAMESPACE}" --patch "{\"data\":${CUSTOM_SECRETS}}"
             
             echo "✅ Secret '${SECRET_NAME}' atualizado com dados sensíveis no namespace '${NAMESPACE}'"
           else
