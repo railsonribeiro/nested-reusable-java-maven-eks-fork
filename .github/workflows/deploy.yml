@@ -112,8 +112,14 @@ jobs:
       - name: Get ArgoCD Admin Password
         id: argocd_password
         run: |
-          echo "🔐 Usando senha de teste..."
-          ARGOCD_PASSWORD="2iXvUysS7TetiJUu"
+          echo "🔐 Recuperando senha do admin do ArgoCD do cluster..."
+          ARGOCD_PASSWORD=$(kubectl get secret argocd-initial-admin-secret -n ${{ inputs.argocd_namespace }} -o jsonpath='{.data.password}' | base64 -d)
+          if [ -z "$ARGOCD_PASSWORD" ]; then
+            echo "❌ ERRO: Não foi possível recuperar a senha do ArgoCD"
+            exit 1
+          fi
+          echo "🔍 DEBUG - Senha recuperada: '$ARGOCD_PASSWORD'"
+          echo "🔍 DEBUG - Tamanho da senha: ${#ARGOCD_PASSWORD} caracteres"
           echo "password=$ARGOCD_PASSWORD" >> $GITHUB_OUTPUT
           echo "✅ Senha configurada com sucesso!"
       
