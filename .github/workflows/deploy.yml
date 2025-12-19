@@ -112,16 +112,14 @@ jobs:
       - name: Get ArgoCD Admin Password
         id: argocd_password
         run: |
-          echo "🔐 Recuperando senha do admin do ArgoCD do cluster..."
-          ARGOCD_PASSWORD=$(kubectl get secret argocd-initial-admin-secret -n ${{ inputs.argocd_namespace }} -o jsonpath='{.data.password}' | base64 -d)
+          echo "🔐 Recuperando senha do admin do ArgoCD do AWS Secrets Manager..."
+          ARGOCD_PASSWORD=$(aws secretsmanager get-secret-value --secret-id argocd-admin-password --query SecretString --output text)
           if [ -z "$ARGOCD_PASSWORD" ]; then
             echo "❌ ERRO: Não foi possível recuperar a senha do ArgoCD"
             exit 1
           fi
-          echo "🔍 DEBUG - Senha recuperada: '$ARGOCD_PASSWORD'"
-          echo "🔍 DEBUG - Tamanho da senha: ${#ARGOCD_PASSWORD} caracteres"
           echo "password=$ARGOCD_PASSWORD" >> $GITHUB_OUTPUT
-          echo "✅ Senha configurada com sucesso!"
+          echo "✅ Senha recuperada com sucesso!"
       
       - name: Login to ArgoCD
         run: |
@@ -130,7 +128,6 @@ jobs:
             --username admin \
             --password '${{ steps.argocd_password.outputs.password }}' \
             --grpc-web \
-            --plaintext \
             --insecure
           echo "✅ Login realizado com sucesso!"
 
