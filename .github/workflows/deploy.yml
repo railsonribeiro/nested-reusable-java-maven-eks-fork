@@ -124,7 +124,7 @@ jobs:
       - name: Login to ArgoCD
         run: |
           echo "🔐 Fazendo login no ArgoCD..."
-          argocd login ${{ steps.argocd_url.outputs.url }} \
+          echo "y" | argocd login ${{ steps.argocd_url.outputs.url }} \
             --username admin \
             --password '${{ steps.argocd_password.outputs.password }}' \
             --grpc-web \
