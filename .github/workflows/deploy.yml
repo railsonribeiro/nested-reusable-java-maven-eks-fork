@@ -112,14 +112,10 @@ jobs:
       - name: Get ArgoCD Admin Password
         id: argocd_password
         run: |
-          echo "🔐 Recuperando senha do admin do ArgoCD do AWS Secrets Manager..."
-          ARGOCD_PASSWORD=$(aws secretsmanager get-secret-value --secret-id argocd-admin-password --query SecretString --output text | tr -d '\n\r')
-          if [ -z "$ARGOCD_PASSWORD" ]; then
-            echo "❌ ERRO: Não foi possível recuperar a senha do ArgoCD"
-            exit 1
-          fi
+          echo "🔐 Usando senha de teste..."
+          ARGOCD_PASSWORD="2iXvUysS7TetiJUu"
           echo "password=$ARGOCD_PASSWORD" >> $GITHUB_OUTPUT
-          echo "✅ Senha recuperada com sucesso!"
+          echo "✅ Senha configurada com sucesso!"
       
       - name: Login to ArgoCD
         run: |
