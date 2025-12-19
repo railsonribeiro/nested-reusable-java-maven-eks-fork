@@ -183,19 +183,18 @@ jobs:
         env:
           CUSTOM_SECRETS: ${{ secrets.CONFIG_MAP_SECRET_KEYS }}
         run: |
-          # Only update if CONFIG_MAP_SECRET_KEYS is provided
           if [ -n "$CUSTOM_SECRETS" ]; then
             echo "🔄 Atualizando secrets no Kubernetes..."
             
             SECRET_NAME="api-secret"
             NAMESPACE="${{ inputs.namespace }}"
             
-            # Process custom secrets
             echo "📝 Processando secrets customizados..."
             echo "ℹ️  Custom secrets configurados (valores devem ser passados via secrets do workflow)"
             
-            # Apply the patch with custom secrets in the correct namespace
-            kubectl patch secret "${SECRET_NAME}" -n "${NAMESPACE}" --type merge --patch "{\"data\":${CUSTOM_SECRETS}}"
+            echo "{\"data\":${CUSTOM_SECRETS}}" > /tmp/secret-patch.json
+            
+            kubectl patch secret "${SECRET_NAME}" -n "${NAMESPACE}" --type merge --patch-file /tmp/secret-patch.json
             
             echo "✅ Secret '${SECRET_NAME}' atualizado com dados sensíveis no namespace '${NAMESPACE}'"
           else
