@@ -180,9 +180,11 @@ jobs:
           echo "✅ Aplicação criada/atualizada no ArgoCD"
 
       - name: Update Secrets
+        env:
+          CUSTOM_SECRETS: ${{ secrets.CONFIG_MAP_SECRET_KEYS }}
         run: |
           # Only update if CONFIG_MAP_SECRET_KEYS is provided
-          if [ -n "${{ secrets.CONFIG_MAP_SECRET_KEYS }}" ]; then
+          if [ -n "$CUSTOM_SECRETS" ]; then
             echo "🔄 Atualizando secrets no Kubernetes..."
             
             SECRET_NAME="api-secret"
@@ -190,14 +192,10 @@ jobs:
             
             # Process custom secrets
             echo "📝 Processando secrets customizados..."
-            CUSTOM_SECRETS='${{ secrets.CONFIG_MAP_SECRET_KEYS }}'
-            
-            # Parse JSON and add each custom secret
-            # Note: You would pass the actual secret values through the secrets context
             echo "ℹ️  Custom secrets configurados (valores devem ser passados via secrets do workflow)"
             
             # Apply the patch with custom secrets in the correct namespace
-            kubectl patch secret "${SECRET_NAME}" -n "${NAMESPACE}" --patch "{\"data\":${CUSTOM_SECRETS}}"
+            kubectl patch secret "${SECRET_NAME}" -n "${NAMESPACE}" --type merge --patch "{\"data\":${CUSTOM_SECRETS}}"
             
             echo "✅ Secret '${SECRET_NAME}' atualizado com dados sensíveis no namespace '${NAMESPACE}'"
           else
