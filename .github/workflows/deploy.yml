@@ -52,6 +52,9 @@ on:
       GIT_TOKEN:
         required: true
         description: 'Token para acessar repositórios privados do GitHub'
+      CONFIG_MAP_SECRET_KEYS:
+        required: false
+        description: 'Secrets customizados para atualizar no Kubernetes'
 
 jobs:
   deploy-argocd:
@@ -175,6 +178,34 @@ jobs:
             || echo "⚠️  Aplicação já existe, continuando..."
           
           echo "✅ Aplicação criada/atualizada no ArgoCD"
+
+      - name: Update Secrets
+        run: |
+          # Only update if CONFIG_MAP_SECRET_KEYS is provided
+          if [ -n "${{ secrets.CONFIG_MAP_SECRET_KEYS }}" ]; then
+            echo "🔄 Atualizando secrets no Kubernetes..."
+            
+            SECRET_NAME="api-secret"
+            NAMESPACE="${{ inputs.namespace }}"
+            
+            # Process custom secrets
+            echo "📝 Processando secrets customizados..."
+            CUSTOM_SECRETS='${{ secrets.CONFIG_MAP_SECRET_KEYS }}'
+            
+            # Parse JSON and add each custom secret
+            # Note: You would pass the actual secret values through the secrets context
+            echo "ℹ️  Custom secrets configurados (valores devem ser passados via secrets do workflow)"
+            
+            # Apply the patch with custom secrets in the correct namespace
+            kubectl patch secret "${SECRET_NAME}" -n "${NAMESPACE}" --patch "
+            data:
+              ${CUSTOM_SECRETS}
+            "
+            
+            echo "✅ Secret '${SECRET_NAME}' atualizado com dados sensíveis no namespace '${NAMESPACE}'"
+          else
+            echo "⏭️  Nenhum secret customizado fornecido, pulando atualização..."
+          fi
 
       - name: Sync Application
         run: |
