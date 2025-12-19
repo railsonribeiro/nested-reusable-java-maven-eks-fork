@@ -190,9 +190,10 @@ jobs:
             NAMESPACE="${{ inputs.namespace }}"
             
             echo "📝 Processando secrets customizados..."
-            echo "ℹ️  Custom secrets configurados (valores devem ser passados via secrets do workflow)"
+            echo "ℹ️  Custom secrets configurados"
             
-            echo "{\"data\":${CUSTOM_SECRETS}}" > /tmp/secret-patch.json
+            # Usar jq para construir o JSON de patch corretamente
+            echo "$CUSTOM_SECRETS" | jq '{data: .}' > /tmp/secret-patch.json
             
             kubectl patch secret "${SECRET_NAME}" -n "${NAMESPACE}" --type merge --patch-file /tmp/secret-patch.json
             
