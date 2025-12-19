@@ -115,19 +115,12 @@ jobs:
           echo "🔐 Recuperando senha do admin do ArgoCD do AWS Secrets Manager..."
           SECRET_VALUE=$(aws secretsmanager get-secret-value --secret-id argocd-admin-password --query SecretString --output text)
           
-          # Verificar se o secret está em formato JSON
-          if echo "$SECRET_VALUE" | jq -e . >/dev/null 2>&1; then
-            echo "📄 Secret está em formato JSON, extraindo valor..."
-            # Tentar extrair de diferentes possíveis chaves
-            ARGOCD_PASSWORD=$(echo "$SECRET_VALUE" | jq -r '.password // .argocd_password // .value // .' | tr -d '\n' | xargs)
-          else
-            echo "📝 Secret está em formato texto plano"
-            ARGOCD_PASSWORD=$(echo "$SECRET_VALUE" | tr -d '\n' | xargs)
-          fi
+          # Extrair senha do JSON
+          ARGOCD_PASSWORD=$(echo "$SECRET_VALUE" | jq -r '.password' | tr -d '\n' | xargs)
           
           if [ -z "$ARGOCD_PASSWORD" ]; then
             echo "❌ ERRO: Não foi possível recuperar a senha do ArgoCD"
-            echo "Secret length: ${#SECRET_VALUE}"
+            echo "Secret content: $SECRET_VALUE"
             exit 1
           fi
           
@@ -135,14 +128,21 @@ jobs:
           echo "✅ Senha recuperada com sucesso! (length: ${#ARGOCD_PASSWORD} chars)"
       
       - name: Login to ArgoCD
+        env:
+          ARGOCD_PASSWORD: ${{ steps.argocd_password.outputs.password }}
         run: |
           echo "🔐 Fazendo login no ArgoCD..."
+          echo "🔍 URL: ${{ steps.argocd_url.outputs.url }}"
+          echo "👤 Username: admin"
+          echo "🔑 Password length: ${#ARGOCD_PASSWORD} chars"
+          
           argocd login ${{ steps.argocd_url.outputs.url }} \
             --username admin \
-            --password '${{ steps.argocd_password.outputs.password }}' \
+            --password "$ARGOCD_PASSWORD" \
             --grpc-web \
             --insecure \
             --plaintext
+          
           echo "✅ Login realizado com sucesso!"
 
       - name: Configure Git Repository Access
