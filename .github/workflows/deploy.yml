@@ -54,7 +54,7 @@ on:
         description: 'Token para acessar repositórios privados do GitHub'
       CONFIG_MAP_SECRET_KEYS:
         required: false
-        description: 'Secrets customizados para atualizar no Kubernetes'
+        description: 'JSON string with custom secret key mappings. Example: {"DB_PASSWORD":"DATABASE_PASSWORD","API_KEY":"EXTERNAL_API_KEY"}'
 
 jobs:
   deploy-argocd:
