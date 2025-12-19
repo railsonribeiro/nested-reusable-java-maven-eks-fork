@@ -113,13 +113,26 @@ jobs:
         id: argocd_password
         run: |
           echo "🔐 Recuperando senha do admin do ArgoCD do AWS Secrets Manager..."
-          ARGOCD_PASSWORD=$(aws secretsmanager get-secret-value --secret-id argocd-admin-password --query SecretString --output text | tr -d '\n' | xargs)
+          SECRET_VALUE=$(aws secretsmanager get-secret-value --secret-id argocd-admin-password --query SecretString --output text)
+          
+          # Verificar se o secret está em formato JSON
+          if echo "$SECRET_VALUE" | jq -e . >/dev/null 2>&1; then
+            echo "📄 Secret está em formato JSON, extraindo valor..."
+            # Tentar extrair de diferentes possíveis chaves
+            ARGOCD_PASSWORD=$(echo "$SECRET_VALUE" | jq -r '.password // .argocd_password // .value // .' | tr -d '\n' | xargs)
+          else
+            echo "📝 Secret está em formato texto plano"
+            ARGOCD_PASSWORD=$(echo "$SECRET_VALUE" | tr -d '\n' | xargs)
+          fi
+          
           if [ -z "$ARGOCD_PASSWORD" ]; then
             echo "❌ ERRO: Não foi possível recuperar a senha do ArgoCD"
+            echo "Secret length: ${#SECRET_VALUE}"
             exit 1
           fi
+          
           echo "password=$ARGOCD_PASSWORD" >> $GITHUB_OUTPUT
-          echo "✅ Senha recuperada com sucesso!"
+          echo "✅ Senha recuperada com sucesso! (length: ${#ARGOCD_PASSWORD} chars)"
       
       - name: Login to ArgoCD
         run: |
