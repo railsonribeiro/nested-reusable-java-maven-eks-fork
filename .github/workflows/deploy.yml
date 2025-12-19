@@ -128,6 +128,7 @@ jobs:
             --username admin \
             --password '${{ steps.argocd_password.outputs.password }}' \
             --grpc-web \
+            --plaintext \
             --insecure
           echo "✅ Login realizado com sucesso!"
 
