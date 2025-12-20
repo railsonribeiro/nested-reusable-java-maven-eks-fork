@@ -34,6 +34,10 @@ on:
         required: false
         type: boolean
         default: true
+    outputs:
+      new_image_pushed:
+        description: "Se nova imagem foi publicada"
+        value: ${{ jobs.docker-build-and-push.outputs.new_image_pushed }}
 
 jobs:
   validation-and-lint:
