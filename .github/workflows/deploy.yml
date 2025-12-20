@@ -109,47 +109,6 @@ jobs:
           fi
           
           echo "✅ Secret $SECRET_NAME created/updated in AWS Secrets Manager"
-      
-      - name: Get AWS Account ID and Role ARN
-        id: aws-info
-        run: |
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
-          
-          # Buscar a role de secrets manager - nome fixo baseado no cluster
-          ROLE_NAME="${{ inputs.cluster_name }}-secrets-manager-access"
-          ROLE_ARN=$(aws iam get-role --role-name "$ROLE_NAME" --query "Role.Arn" --output text 2>/dev/null || echo "")
-          
-          if [ -z "$ROLE_ARN" ] || [ "$ROLE_ARN" == "None" ]; then
-            echo "ERROR: Role $ROLE_NAME not found!"
-            exit 1
-          fi
-          
-          echo "role_arn=$ROLE_ARN" >> $GITHUB_OUTPUT
-          
-          echo "AWS Account ID: $ACCOUNT_ID"
-          echo "Role ARN: $ROLE_ARN"
-
-
-      - name: Apply ServiceAccount
-        run: |
-          # Obter o ARN da role
-          ROLE_ARN="${{ steps.aws-info.outputs.role_arn }}"
-          echo "Role ARN a ser usado: $ROLE_ARN"
-          
-          # Criar ServiceAccount diretamente via kubectl
-          cat <<EOF | kubectl apply -f -
-          apiVersion: v1
-          kind: ServiceAccount
-          metadata:
-            name: ${{ inputs.namespace }}-service-account
-            namespace: ${{ inputs.namespace }}
-            annotations:
-              eks.amazonaws.com/role-arn: ${ROLE_ARN}
-          EOF
-          
-          echo "ServiceAccount applied successfully"
-
 
       - name: Install ArgoCD CLI
         run: |
@@ -220,22 +179,29 @@ jobs:
         run: |
           echo "🚀 Criando/Atualizando aplicação no ArgoCD..."
           
-          # Criar Application usando ArgoCD CLI
+          # Criar Application usando ArgoCD CLI (sync manual)
           argocd app create ${{ inputs.app_name }} \
             --repo ${{ inputs.git_repo_url }} \
             --path ${{ inputs.manifests_path }} \
             --dest-server https://kubernetes.default.svc \
             --dest-namespace ${{ inputs.namespace }} \
             --revision ${{ inputs.git_branch }} \
-            --sync-policy automated \
-            --auto-prune \
-            --self-heal \
             --sync-option CreateNamespace=true \
             --grpc-web \
             --upsert \
             || echo "⚠️  Aplicação já existe, continuando..."
           
           echo "✅ Aplicação criada/atualizada no ArgoCD"
+
+      - name: Sync ArgoCD Application
+        run: |
+          echo "🔄 Sincronizando aplicação..."
+          argocd app sync ${{ inputs.app_name }} \
+            --grpc-web \
+            --prune \
+            --timeout 300
+          
+          echo "✅ Sincronização concluída!"
 
       - name: Display Application URL
         run: |
