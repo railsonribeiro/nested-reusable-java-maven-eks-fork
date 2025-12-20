@@ -269,7 +269,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check if image tag already exists on Docker Hub
+        id: check_tag
+        run: |
+          IMAGE_TAG="${{ needs.build_and_test.outputs.image_tag }}"
+          IMAGE_NAME="${{ inputs.dockerhub_username }}/${{ inputs.app_name }}"
+          
+          echo "🔍 Verificando se a tag '$IMAGE_TAG' já existe no Docker Hub..."
+          
+          # Verificar se a tag existe usando a API do Docker Hub
+          RESPONSE=$(curl -s "https://hub.docker.com/v2/repositories/${IMAGE_NAME}/tags/${IMAGE_TAG}")
+          
+          if echo "$RESPONSE" | grep -q '"name"'; then
+            echo "⏭️  Tag '$IMAGE_TAG' já existe no Docker Hub. Pulando build e push."
+            echo "tag_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Tag '$IMAGE_TAG' não existe. Continuando com build e push."
+            echo "tag_exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build Docker image
+        if: steps.check_tag.outputs.tag_exists == 'false'
         run: |
           IMAGE_TAG="${{ needs.build_and_test.outputs.image_tag }}"
           echo "🐳 Construindo imagem Docker com tag: $IMAGE_TAG"
@@ -277,12 +297,14 @@ jobs:
           docker tag ${{ inputs.app_name }}:$IMAGE_TAG ${{ inputs.app_name }}:latest
 
       - name: Login to Docker Hub
+        if: steps.check_tag.outputs.tag_exists == 'false'
         uses: docker/login-action@v3
         with:
           username: ${{ inputs.dockerhub_username }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Tag Docker image for Docker Hub
+        if: steps.check_tag.outputs.tag_exists == 'false'
         run: |
           IMAGE_TAG="${{ needs.build_and_test.outputs.image_tag }}"
           echo "🏷️  Criando tags para Docker Hub..."
@@ -291,6 +313,7 @@ jobs:
           echo "✅ Tags criadas: $IMAGE_TAG e latest"
 
       - name: Push Docker image to Docker Hub
+        if: steps.check_tag.outputs.tag_exists == 'false'
         run: |
           IMAGE_TAG="${{ needs.build_and_test.outputs.image_tag }}"
           echo "📤 Enviando imagens para Docker Hub..."
