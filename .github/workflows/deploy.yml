@@ -52,9 +52,6 @@ on:
       GIT_TOKEN:
         required: true
         description: 'Token para acessar repositórios privados do GitHub'
-      CONFIG_MAP_SECRET_KEYS:
-        required: false
-        description: 'JSON string with custom secret key mappings. Example: {"DB_PASSWORD":"DATABASE_PASSWORD","API_KEY":"EXTERNAL_API_KEY"}'
 
 jobs:
   deploy-argocd:
@@ -178,42 +175,6 @@ jobs:
             || echo "⚠️  Aplicação já existe, continuando..."
           
           echo "✅ Aplicação criada/atualizada no ArgoCD"
-
-      - name: Update Secrets
-        env:
-          CUSTOM_SECRETS: ${{ secrets.CONFIG_MAP_SECRET_KEYS }}
-        run: |
-          if [ -n "$CUSTOM_SECRETS" ]; then
-            echo "🔄 Atualizando secrets no Kubernetes..."
-            
-            SECRET_NAME="api-secret"
-            NAMESPACE="${{ inputs.namespace }}"
-            
-            echo "📝 Processando secrets customizados..."
-            echo "ℹ️  Custom secrets configurados"
-            
-            # Debug: mostrar tamanho do secret
-            echo "📊 Tamanho do secret: ${#CUSTOM_SECRETS} chars"
-            
-            # Validar se é JSON válido
-            if ! echo "$CUSTOM_SECRETS" | jq -e . > /dev/null 2>&1; then
-              echo "❌ ERRO: CONFIG_MAP_SECRET_KEYS não é um JSON válido"
-              echo "Conteúdo recebido (primeiros 50 chars): ${CUSTOM_SECRETS:0:50}..."
-              exit 1
-            fi
-            
-            # Usar jq para construir o JSON de patch corretamente
-            echo "$CUSTOM_SECRETS" | jq -c '{data: .}' > /tmp/secret-patch.json
-            
-            echo "📄 Patch gerado:"
-            cat /tmp/secret-patch.json
-            
-            kubectl patch secret "${SECRET_NAME}" -n "${NAMESPACE}" --type merge --patch-file /tmp/secret-patch.json
-            
-            echo "✅ Secret '${SECRET_NAME}' atualizado com dados sensíveis no namespace '${NAMESPACE}'"
-          else
-            echo "⏭️  Nenhum secret customizado fornecido, pulando atualização..."
-          fi
 
       - name: Sync Application
         run: |
