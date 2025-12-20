@@ -265,6 +265,9 @@ jobs:
     needs:  build_and_test
     runs-on: ubuntu-latest
     if: inputs.run_docker_build_and_push
+    outputs:
+      new_image_pushed: ${{ steps.check_tag.outputs.tag_exists == 'false' }}
+      image_tag: ${{ needs.build_and_test.outputs.image_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
