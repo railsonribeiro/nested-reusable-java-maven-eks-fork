@@ -90,6 +90,17 @@ jobs:
           echo "✅ Conectado ao cluster com sucesso!"
           kubectl get nodes
 
+      - name: Create Kubernetes Secret
+        run: |
+          # Criar ou atualizar a Secret com as credenciais AWS
+          kubectl create secret generic ${{ inputs.namespace }}-api-secret \
+            --namespace ${{ inputs.namespace }} \
+            --from-literal=AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} \
+            --from-literal=AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+          
+          echo "Kubernetes Secret ${{ inputs.namespace }}-api-secret created/updated successfully"
+
       - name: Install ArgoCD CLI
         run: |
           echo "📦 Instalando ArgoCD CLI..."
@@ -175,14 +186,6 @@ jobs:
             || echo "⚠️  Aplicação já existe, continuando..."
           
           echo "✅ Aplicação criada/atualizada no ArgoCD"
-
-      - name: Sync Application
-        run: |
-          echo "🔄 Sincronizando aplicação..."
-          argocd app sync ${{ inputs.app_name }} \
-            --grpc-web \
-            --timeout 300
-          echo "✅ Sincronização concluída!"
 
       - name: Display Application URL
         run: |
