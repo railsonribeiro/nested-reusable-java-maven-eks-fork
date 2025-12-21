@@ -34,6 +34,20 @@ on:
         required: false
         type: boolean
         default: true
+      run_update_deployment:
+        description: "Atualizar tag no deployment.yaml e fazer commit"
+        required: true
+        type: boolean
+        default: true
+      deployment_path:
+        description: "Caminho do deployment.yaml (ex: k8s/prd/deployment.yaml)"
+        required: false
+        type: string
+        default: "k8s/prd/deployment.yaml"
+      image_full_name:
+        description: "Nome completo da imagem (ex: postechf57/pos-tech-g57-app-orders)"
+        required: false
+        type: string
     outputs:
       new_image_pushed:
         description: "Se nova imagem foi publicada"
@@ -332,3 +346,40 @@ jobs:
           echo "✅ Imagens publicadas:"
           echo "  - ${{ inputs.dockerhub_username }}/${{ inputs.app_name }}:$IMAGE_TAG"
           echo "  - ${{ inputs.dockerhub_username }}/${{ inputs.app_name }}:latest"
+
+  update-deployment-tag:
+    name: Update Deployment Tag
+    needs: docker-build-and-push
+    runs-on: ubuntu-latest
+    if: ${{ github.ref == 'refs/heads/main' && inputs.run_update_deployment && needs.docker-build-and-push.outputs.new_image_pushed == 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update deployment image tag
+        run: |
+          IMAGE_TAG="${{ needs.docker-build-and-push.outputs.image_tag }}"
+          IMAGE_NAME="${{ inputs.image_full_name }}"
+          DEPLOYMENT_PATH="${{ inputs.deployment_path }}"
+          
+          echo "🏷️ Atualizando tag da imagem para: $IMAGE_TAG"
+          echo "📁 Arquivo: $DEPLOYMENT_PATH"
+          
+          if [ ! -f "$DEPLOYMENT_PATH" ]; then
+            echo "❌ ERRO: Arquivo $DEPLOYMENT_PATH não encontrado"
+            exit 1
+          fi
+          
+          sed -i "s|image: ${IMAGE_NAME}:.*|image: ${IMAGE_NAME}:${IMAGE_TAG}|" "$DEPLOYMENT_PATH"
+          echo "✅ Tag atualizada:"
+          grep "image:" "$DEPLOYMENT_PATH"
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ${{ inputs.deployment_path }}
+          git diff --staged --quiet || git commit -m "release: ${{ needs.docker-build-and-push.outputs.image_tag }} [skip ci]"
+          git push
