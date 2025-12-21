@@ -36,7 +36,7 @@ on:
         default: true
       run_update_deployment:
         description: "Atualizar tag no deployment.yaml e fazer commit"
-        required: true
+        required: false
         type: boolean
         default: true
       deployment_path:
@@ -44,10 +44,11 @@ on:
         required: false
         type: string
         default: "k8s/prd/deployment.yaml"
-      image_full_name:
-        description: "Nome completo da imagem (ex: postechf57/pos-tech-g57-app-orders)"
+      run_cd:
+        description: "Disparar workflow de CD após update do deployment"
         required: false
-        type: string
+        type: boolean
+        default: true
     outputs:
       new_image_pushed:
         description: "Se nova imagem foi publicada"
@@ -361,7 +362,7 @@ jobs:
       - name: Update deployment image tag
         run: |
           IMAGE_TAG="${{ needs.docker-build-and-push.outputs.image_tag }}"
-          IMAGE_NAME="${{ inputs.image_full_name }}"
+          IMAGE_NAME="${{ inputs.dockerhub_username }}/${{ inputs.app_name }}"
           DEPLOYMENT_PATH="${{ inputs.deployment_path }}"
           
           echo "🏷️ Atualizando tag da imagem para: $IMAGE_TAG"
@@ -383,3 +384,17 @@ jobs:
           git add ${{ inputs.deployment_path }}
           git diff --staged --quiet || git commit -m "release: ${{ needs.docker-build-and-push.outputs.image_tag }} [skip ci]"
           git push
+
+  call-cd:
+    name: Trigger CD Workflow
+    needs: [docker-build-and-push, update-deployment-tag]
+    runs-on: ubuntu-latest
+    if: ${{ github.ref == 'refs/heads/main' && inputs.run_cd && needs.docker-build-and-push.outputs.new_image_pushed == 'true' }}
+    steps:
+      - name: Trigger CD workflow
+        run: |
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/dispatches \
+            -d "{\"event_type\": \"deploy\"}"
