@@ -384,17 +384,3 @@ jobs:
           git add ${{ inputs.deployment_path }}
           git diff --staged --quiet || git commit -m "release: ${{ needs.docker-build-and-push.outputs.image_tag }} [skip ci]"
           git push
-
-  call-cd:
-    name: Trigger CD Workflow
-    needs: [docker-build-and-push, update-deployment-tag]
-    runs-on: ubuntu-latest
-    if: ${{ github.ref == 'refs/heads/main' && inputs.run_cd && needs.docker-build-and-push.outputs.new_image_pushed == 'true' }}
-    steps:
-      - name: Trigger CD workflow
-        run: |
-          curl -X POST \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/${{ github.repository }}/dispatches \
-            -d "{\"event_type\": \"deploy\"}"
