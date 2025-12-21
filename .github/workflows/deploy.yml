@@ -3,7 +3,7 @@ name: Deploy
 on:
   workflow_call:
     inputs:
-      app_name:
+      argo_app_name:
         required: true
         type: string
         description: 'Nome da aplicação (ex: orders-api)'
@@ -50,8 +50,8 @@ on:
       AWS_SECRET_ACCESS_KEY:
         required: true
       GIT_TOKEN:
-        required: true
-        description: 'Token para acessar repositórios privados do GitHub'
+        required: false
+        description: 'Token para acessar repositórios privados do GitHub (opcional para repos públicos)'
 
 jobs:
   deploy-argocd:
@@ -89,26 +89,6 @@ jobs:
           
           echo "✅ Conectado ao cluster com sucesso!"
           kubectl get nodes
-
-      - name: Create AWS Credentials in Secrets Manager
-        run: |
-          SECRET_NAME="aws-credentials"
-          
-          # Verificar se a secret já existe
-          if aws secretsmanager describe-secret --secret-id "$SECRET_NAME" >/dev/null 2>&1; then
-            echo "🔄 Atualizando secret existente: $SECRET_NAME"
-            aws secretsmanager put-secret-value \
-              --secret-id "$SECRET_NAME" \
-              --secret-string '{"AWS_ACCESS_KEY_ID":"${{ secrets.AWS_ACCESS_KEY_ID }}","AWS_SECRET_ACCESS_KEY":"${{ secrets.AWS_SECRET_ACCESS_KEY }}"}'
-          else
-            echo "🆕 Criando nova secret: $SECRET_NAME"
-            aws secretsmanager create-secret \
-              --name "$SECRET_NAME" \
-              --description "AWS credentials for applications" \
-              --secret-string '{"AWS_ACCESS_KEY_ID":"${{ secrets.AWS_ACCESS_KEY_ID }}","AWS_SECRET_ACCESS_KEY":"${{ secrets.AWS_SECRET_ACCESS_KEY }}"}'
-          fi
-          
-          echo "✅ Secret $SECRET_NAME created/updated in AWS Secrets Manager"
 
       - name: Install ArgoCD CLI
         run: |
@@ -167,20 +147,30 @@ jobs:
 
       - name: Configure Git Repository Access
         run: |
-          echo "🔑 Configurando acesso ao repositório privado..."
-          argocd repo add ${{ inputs.git_repo_url }} \
-            --username git \
-            --password ${{ secrets.GIT_TOKEN }} \
-            --insecure-skip-server-verification \
-            --upsert
-          echo "✅ Repositório privado configurado no ArgoCD"
+          echo "🔑 Configurando acesso ao repositório..."
+          
+          if [ -n "${{ secrets.GIT_TOKEN }}" ]; then
+            echo "🔐 Token encontrado - configurando acesso autenticado (repo privado)..."
+            argocd repo add ${{ inputs.git_repo_url }} \
+              --username git \
+              --password ${{ secrets.GIT_TOKEN }} \
+              --insecure-skip-server-verification \
+              --upsert
+            echo "✅ Repositório privado configurado no ArgoCD"
+          else
+            echo "🌐 Sem token - configurando acesso público..."
+            argocd repo add ${{ inputs.git_repo_url }} \
+              --insecure-skip-server-verification \
+              --upsert
+            echo "✅ Repositório público configurado no ArgoCD"
+          fi
 
       - name: Create ArgoCD Application
         run: |
           echo "🚀 Criando/Atualizando aplicação no ArgoCD..."
           
           # Criar Application usando ArgoCD CLI (sync manual)
-          argocd app create ${{ inputs.app_name }} \
+          argocd app create ${{ inputs.argo_app_name }} \
             --repo ${{ inputs.git_repo_url }} \
             --path ${{ inputs.manifests_path }} \
             --dest-server https://kubernetes.default.svc \
@@ -196,7 +186,7 @@ jobs:
       - name: Sync ArgoCD Application
         run: |
           echo "🔄 Sincronizando aplicação..."
-          argocd app sync ${{ inputs.app_name }} \
+          argocd app sync ${{ inputs.argo_app_name }} \
             --grpc-web \
             --prune \
             --timeout 300
