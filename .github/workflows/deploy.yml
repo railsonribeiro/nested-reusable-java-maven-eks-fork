@@ -113,7 +113,7 @@ jobs:
         id: argocd_password
         run: |
           echo "🔐 Recuperando senha do admin do ArgoCD do AWS Secrets Manager..."
-          SECRET_VALUE=$(aws secretsmanager get-secret-value --secret-id argocd-admin-password --query SecretString --output text)
+          SECRET_VALUE=$(aws secretsmanager get-secret-value --secret-id argocd-admin-password4 --query SecretString --output text)
           
           # Extrair senha do JSON
           ARGOCD_PASSWORD=$(echo "$SECRET_VALUE" | jq -r '.password' | tr -d '\n' | xargs)
