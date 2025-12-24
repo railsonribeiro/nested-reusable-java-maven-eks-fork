@@ -1,143 +1,205 @@
-name: Deploy Workflow
+name: Deploy
 
 on:
   workflow_call:
     inputs:
-      app_name:
+      argo_app_name:
         required: true
         type: string
-        default: 'default-app'
-      dockerhub_username:
-        required: false
-        type: string
-        default: 'default-username'
+        description: 'Nome da aplicação (ex: orders-api)'
       cluster_name:
+        required: true
+        type: string
+        description: 'Nome do cluster EKS'
+      namespace:
+        required: true
+        type: string
+        description: 'Namespace da aplicação'
+      git_repo_url:
+        required: true
+        type: string
+        description: 'URL do repositório Git com os manifestos'
+      git_branch:
         required: false
         type: string
-        default: 'default-cluster'
+        default: main
+        description: 'Branch do repositório a ser monitorada'
+      manifests_path:
+        required: false
+        type: string
+        default: k8s/prd
+        description: 'Caminho dos manifestos no repositório'
+      environment:
+        required: false
+        type: string
+        default: production
+        description: 'Ambiente (production, staging, development)'
       region_aws_deploy:
         required: false
         type: string
-        default: 'us-east-1'
-      domain_name:
+        default: us-east-1
+      argocd_namespace:
         required: false
         type: string
-        default: 'default-domain.com'
-      run_docker_build_and_push:
+        default: argocd
+        description: 'Namespace onde o ArgoCD está instalado'
+
+    secrets:
+      AWS_ACCESS_KEY_ID:
         required: true
-        type: boolean
-      run_deploy:
+      AWS_SECRET_ACCESS_KEY:
         required: true
-        type: boolean
+      GIT_TOKEN:
+        required: false
+        description: 'Token para acessar repositórios privados do GitHub (opcional para repos públicos)'
 
 jobs:
-  docker-build-and-push:
-    name: Build and Push Docker Image
+  deploy-argocd:
+    name: Deploy Application via ArgoCD
     runs-on: ubuntu-latest
-    if: inputs.run_docker_build_and_push
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Build Docker image
-        run: |
-          docker build -t ${{ vars.APP_NAME }}:latest .
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ vars.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Tag Docker image for Docker Hub
-        run: |
-          docker tag ${{ vars.APP_NAME }}:latest ${{ vars.DOCKERHUB_USERNAME }}/${{ vars.APP_NAME }}:latest
-
-      - name: Push Docker image to Docker Hub
-        run: |
-          docker push ${{ vars.DOCKERHUB_USERNAME }}/${{ vars.APP_NAME }}:latest
-
-  deploy:
-    name: Deploy to Cluster
-    runs-on: ubuntu-latest
-    needs: docker-build-and-push
-    if: inputs.run_deploy
-    steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          aws-region: ${{ inputs.region_aws_deploy }}
 
       - name: Update kube config
         run: |
-          echo "🔍 Verificando cluster EKS: ${{vars.CLUSTER_NAME}}"
+          echo "🔍 Verificando cluster EKS: ${{ inputs.cluster_name }}"
           
-          # Verificar se o cluster existe
-          if ! aws eks describe-cluster --name ${{vars.CLUSTER_NAME}} --region ${{vars.REGION_AWS_DEPLOY}} >/dev/null 2>&1; then
-            echo "❌ ERRO: Cluster EKS '${{vars.CLUSTER_NAME}}' não encontrado na região ${{vars.REGION_AWS_DEPLOY}}"
+          if ! aws eks describe-cluster --name ${{ inputs.cluster_name }} --region ${{ inputs.region_aws_deploy }} >/dev/null 2>&1; then
+            echo "❌ ERRO: Cluster EKS '${{ inputs.cluster_name }}' não encontrado na região ${{ inputs.region_aws_deploy }}"
             exit 1
           fi
           
           echo "✅ Cluster encontrado, atualizando kubeconfig..."
-          aws eks update-kubeconfig --name ${{vars.CLUSTER_NAME}} --region ${{vars.REGION_AWS_DEPLOY}}
+          aws eks update-kubeconfig --name ${{ inputs.cluster_name }} --region ${{ inputs.region_aws_deploy }}
           
-          # Testar conectividade
           echo "🔍 Testando conectividade com o cluster..."
           if ! kubectl get nodes >/dev/null 2>&1; then
             echo "❌ ERRO: Não foi possível conectar ao cluster"
-            echo "Verifique as permissões IAM e a configuração do cluster"
             exit 1
           fi
           
           echo "✅ Conectado ao cluster com sucesso!"
           kubectl get nodes
 
-      - name: Clean Previous Deployment
+      - name: Install ArgoCD CLI
         run: |
-          echo "🧹 Removendo recursos anteriores para garantir deploy limpo..."
+          echo "📦 Instalando ArgoCD CLI..."
+          curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x /usr/local/bin/argocd
+          argocd version --client
 
-          # Deletar todos os recursos do cluster de
-          kubectl delete all --all
-
-      - name: Deploy ConfigMap and Secret base
+      - name: Get ArgoCD Server URL
+        id: argocd_url
         run: |
-          # Apply base ConfigMap and Secret first
-          kubectl apply -f k8s/prd/configmap.yaml
-
-      - name: Update ConfigMap and Secrets
+            echo "🔍 Obtendo URL do ArgoCD do cluster..."
+            ARGOCD_URL=$(kubectl get svc argocd-server -n ${{ inputs.argocd_namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+            if [ -z "$ARGOCD_URL" ]; then
+              echo "❌ ERRO: Não foi possível obter a URL do ArgoCD"
+              exit 1
+            fi
+            echo "url=$ARGOCD_URL" >> $GITHUB_OUTPUT
+            echo "✅ URL do ArgoCD: $ARGOCD_URL"
+      
+      - name: Get ArgoCD Admin Password
+        id: argocd_password
         run: |
-
-          # Update Secret with all sensitive data
-          kubectl patch secret api-secret --patch "
-          data:
-            AWS_ACCESS_KEY: $(echo -n '${{ secrets.AWS_ACCESS_KEY_ID }}' | base64 -w 0)
-            AWS_SECRET_KEY: $(echo -n '${{ secrets.AWS_SECRET_ACCESS_KEY }}' | base64 -w 0)
-            JWT_TOKEN_PIX_APPLICATION_PAYMENT: $(echo -n '${{ secrets.JWT_TOKEN_PIX_APPLICATION_PAYMENT }}' | base64 -w 0)
-            JWT_SECRET: $(echo -n '${{ secrets.JWT_SECRET }}' | base64 -w 0)
-          "
-
-          echo "✅ Secret atualizado com dados sensíveis"
-
-      - name: Deploy to AWS/EKS (Production)
+          echo "🔐 Recuperando senha do admin do ArgoCD do AWS Secrets Manager..."
+          SECRET_VALUE=$(aws secretsmanager get-secret-value --secret-id argocd-admin-password4 --query SecretString --output text)
+          
+          # Extrair senha do JSON
+          ARGOCD_PASSWORD=$(echo "$SECRET_VALUE" | jq -r '.password' | tr -d '\n' | xargs)
+          
+          if [ -z "$ARGOCD_PASSWORD" ]; then
+            echo "❌ ERRO: Não foi possível recuperar a senha do ArgoCD"
+            echo "Secret content: $SECRET_VALUE"
+            exit 1
+          fi
+          
+          echo "password=$ARGOCD_PASSWORD" >> $GITHUB_OUTPUT
+          echo "✅ Senha recuperada com sucesso! (length: ${#ARGOCD_PASSWORD} chars)"
+      
+      - name: Login to ArgoCD
+        env:
+          ARGOCD_PASSWORD: ${{ steps.argocd_password.outputs.password }}
         run: |
-          echo "🚀 Iniciando deploy dos recursos..."
+          echo "🔐 Fazendo login no ArgoCD..."
+          echo "🔍 URL: ${{ steps.argocd_url.outputs.url }}"
+          echo "👤 Username: admin"
+          echo "🔑 Password length: ${#ARGOCD_PASSWORD} chars"
+          
+          argocd login ${{ steps.argocd_url.outputs.url }} \
+            --username admin \
+            --password "$ARGOCD_PASSWORD" \
+            --grpc-web \
+            --insecure \
+            --plaintext
+          
+          echo "✅ Login realizado com sucesso!"
 
-          # Apply deployment first
-          kubectl apply -f k8s/prd/deployment.yaml
+      - name: Configure Git Repository Access
+        run: |
+          echo "🔑 Configurando acesso ao repositório..."
+          
+          if [ -n "${{ secrets.GIT_TOKEN }}" ]; then
+            echo "🔐 Token encontrado - configurando acesso autenticado (repo privado)..."
+            argocd repo add ${{ inputs.git_repo_url }} \
+              --username git \
+              --password ${{ secrets.GIT_TOKEN }} \
+              --insecure-skip-server-verification \
+              --upsert
+            echo "✅ Repositório privado configurado no ArgoCD"
+          else
+            echo "🌐 Sem token - configurando acesso público..."
+            argocd repo add ${{ inputs.git_repo_url }} \
+              --insecure-skip-server-verification \
+              --upsert
+            echo "✅ Repositório público configurado no ArgoCD"
+          fi
 
-          # Aplicar o Service processado
-          kubectl apply -f k8s/prd/k8s-service.yaml
+      - name: Create ArgoCD Application
+        run: |
+          echo "🚀 Criando/Atualizando aplicação no ArgoCD..."
+          
+          # Criar Application usando ArgoCD CLI (sync manual)
+          argocd app create ${{ inputs.argo_app_name }} \
+            --repo ${{ inputs.git_repo_url }} \
+            --path ${{ inputs.manifests_path }} \
+            --dest-server https://kubernetes.default.svc \
+            --dest-namespace ${{ inputs.namespace }} \
+            --revision ${{ inputs.git_branch }} \
+            --sync-option CreateNamespace=true \
+            --grpc-web \
+            --upsert \
+            || echo "⚠️  Aplicação já existe, continuando..."
+          
+          echo "✅ Aplicação criada/atualizada no ArgoCD"
 
-          # Aplicar Ingress
-          kubectl apply -f k8s/prd/ingress.yaml
+      - name: Sync ArgoCD Application
+        run: |
+          echo "🔄 Sincronizando aplicação..."
+          argocd app sync ${{ inputs.argo_app_name }} \
+            --grpc-web \
+            --prune \
+            --timeout 300
+          
+          echo "✅ Sincronização concluída!"
 
-          # Aplicar outros recursos
-          kubectl apply -f k8s/prd/hpa.yaml
-
-          echo "✅ Todos os recursos aplicados com sucesso!"
+      - name: Display Application URL
+        run: |
+          echo "========================================="
+          echo "✅ Deploy concluído com sucesso!"
+          echo "========================================="
+          echo ""
+          echo "🔗 ArgoCD URL: http://${{ steps.argocd_url.outputs.url }}"
+          echo "📁 Repositório: ${{ inputs.git_repo_url }}"
+          echo "🌿 Branch: ${{ inputs.git_branch }}"
+          echo "========================================="
