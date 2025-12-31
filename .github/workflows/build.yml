@@ -354,6 +354,8 @@ jobs:
     needs: docker-build-and-push
     runs-on: ubuntu-latest
     if: ${{ github.ref == 'refs/heads/main' && inputs.run_update_deployment && needs.docker-build-and-push.outputs.new_image_pushed == 'true' }}
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
